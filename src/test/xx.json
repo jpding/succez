@@ -1,0 +1,16 @@
+[{nodeType:'bracket',name:'('},
+{nodeType:'compare',name:'成立日期1',field:'clrq',op:'>',value:'20110101',compclass:'sz.commons.DateCombobox'},
+{nodeType:'and'},
+{nodeType:'compare',name:'成立日期2',field:'clrq',op:'<',value:'20130101',compclass:'sz.commons.DateCombobox'},
+{nodeType:'bracket',name:')'},
+{nodeType:'or'},
+{nodeType:'bracket',name:'('},
+{nodeType:'compare',name:'注册资本',field:'zczb',op:'>',value:'10000',compclass:'sz.commons.form.Edit'},
+{nodeType:'and'},
+{nodeType:'compare',name:'注册资本',field:'zczb',op:'<',value:'20000',compclass:'sz.commons.form.Edit'},
+{nodeType:'and'},
+{nodeType:'compare',name:'产品类型',field:'cplx',op:'=',compclass:'sz.bi.dw.DimensionCombobox'},
+{nodeType:'and'},
+{nodeType:'compare',name:'注册类型',field:'zclx',op:'=',options:[],compclass:'sz.commons.ListCombobox'},
+{nodeType:'bracket',name:')'}
+]

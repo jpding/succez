@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dimension>
+	<properties>
+		<dbTable>实时_同步_设备信息表</dbTable>
+		<startDate/>
+		<slowlyChanging>false</slowlyChanging>
+		<primaryKey>设备ID</primaryKey>
+		<synchronizable>false</synchronizable>
+		<endDate/>
+		<hierarchyDrillPath/>
+		<hierarchyParentId/>
+		<naturalKey/>
+		<hierarchyType>flat</hierarchyType>
+	</properties>
+	<fields>
+		<field name="设备类型ID" type="I" dbField="设备类型ID"/>
+		<field name="设备名称" type="C" len="2147483647" dbField="设备名称"/>
+		<field name="所属单位" type="C" len="2147483647" dbField="所属单位"/>
+		<field name="设备ID" dbField="设备ID" type="I" len="0" scale="0">
+			<isvirtual>false</isvirtual>
+		</field>
+	</fields>
+</dimension>
