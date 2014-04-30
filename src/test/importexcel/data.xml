@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<import>
+	<properties>
+		<table>datasource:/default/dbo/A</table>
+		<startrow>3</startrow>
+		<primarykey>A;B</primarykey>
+		<!--数据类型，是固定表(fix)，还是浮动表(float)，默认是浮动表-->
+		<datatype>float</datatype>
+		<bbqfield></bbqfield>
+	</properties>
+	<fields>
+		<field col="C"  dbfield="A" type="" validate=""></field>
+		<field col="D" dbfield="B" type=""></field>
+		<field col="E" dbfiled="C" type=""></field>
+		<field col="F" dbfield="D" type=""></field>
+	</fields>
+</import>
+

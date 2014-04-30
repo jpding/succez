@@ -1,0 +1,299 @@
+/**
+ * Action的入口方法，读取上传的Excel文件并存到临时表，基础数据导入
+ */
+function startJCSJImport(request, response) {	
+	var datatype = request.datatype;
+		
+	//获取参数中选择的报表期	
+	var bbq = datatype == "month" ? request.bbq_m : request.bbq_y;
+	
+	if (!bbq || bbq == null || bbq == "") {
+		response.attr("msg", "请选择报表日期" + ";request.bbq_m="+request.bbq_m + ";request.bbq_y=" + request.bbq_y + ";datatype=" + datatype);
+		return "baseDataImport.ftl";
+	}
+	
+	//获取表单中上传的文件
+	var excelFile = request.getFile("excelfile");
+	if(excelFile == null) {
+		response.attr("msg", "请选择Excel文件");
+		return "baseDataImport.ftl";
+	}
+	
+	_importClass(); //引入POI文件
+	
+	try{
+		var bbqInFile = _checkBbqInFile(excelFile.file)
+		if(bbqInFile != bbq){
+			response.attr("msg", "文件中的数据日期的与所选导入数据日期不一致，导入失败,文件中的数据期为："+bbqInFile+
+			"；选择的数据期为："+bbq+",如果确认在excel中入了正确的日期，那么可能的原因是第二行的的第二个单元格的类型不是文本类型，请确认！");
+			return "baseDataImport.ftl";
+		}
+	}catch(e){
+		response.attr("msg", "文件读取失败，请确保文件内容和格式符合要求，并已填入数据，在判断数据期是否一致的时候出现了异常。<br>"+e);
+		return "baseDataImport.ftl";
+	}
+	
+	var fileName = excelFile.fileName; //上传的文件名
+	var data;
+	try{
+		data = _getExcelData(excelFile.file); //读取Excel数据到二维数组（普通格式）
+	}catch(e){
+		response.attr("msg", "文件读取失败，请确保文件内容和格式符合要求，并已填入数据，在读取excel内容为数组的时候出现了异常。<br>"+e);
+		return "baseDataImport.ftl";
+	}
+	
+	if(data == null || data.length == 0) {
+		response.attr("msg", "Excel数据为空");
+		return "baseDataImport.ftl";
+	}
+	
+	data.push(bbq);
+	data.push(sz.security.getCurrentUser().id);
+	data.push(tostr(now(), "yyyy-MM-dd hh:mm:ss"));
+	//指定导入数据的数据范围，如果是月，那么用10代码表示数据范围，如果是年，那么用20代码表示数据范围
+	data.push(datatype == "month"?"10":"20");
+	data.push("是");
+	
+	//检查在指定报表周期、报表期内，Excel中是否有基础数据已经导入过了
+	var result = _checkBBQ(bbq);
+	if (result != null && result[0] != null){
+		response.attr("msg", "数据错误，"+result[0][1]+"的报表期数据已经导入过了");
+		return "baseDataImport.ftl";
+	}
+
+	var ds = sz.db.getDataSource('CBNY');
+	try{
+		//数据写入
+		var insertSql = "INSERT FACT_NHJCSL(QYMC, HDZL, GYZCZ, GCZDS, ZCXZZD, YXTZMJ, BJJGDS, YXGS, " +
+				"QGGCXD, DHGLYS, HXRHZL, LMZWDS, ZCYWZJZ, XHZHNH, ZCYWZHNH, QYYXNL,ZLGXZHNH, KQXHDN, HJYXDL, GJDL," +
+				"BBQ, CZR, CZSJ, SJFW,ISAUDIT) " +
+				"VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+		ds.update(insertSql, data);	
+	}catch(e){
+		response.attr("msg", "数据库写入的时候发生了异常，从excel中读取到的数组为："+data.join(";") + "<br>异常信息参考：" + e);
+		return "baseDataImport.ftl";
+	}
+	
+	response.attr("bbq",bbq);
+	response.attr("showResult", "true");
+    response.attr("msg", "保存成功");
+	return "baseDataImport.ftl";
+}
+
+
+/**
+ * Action的入口方法，读取上传的Excel文件并存到临时表,能耗量基准值导入
+ */
+function startNHLJZZImport(request, response) {	
+	//获取参数中选择的报表期	
+	var bbq = request.bbq_m;
+	
+	if (!bbq || bbq == null || bbq == "") {
+		response.attr("msg", "请选择报表日期" + ";request.bbq_m=\""+request.bbq_m+"\"");
+		return "baseDataImport.ftl";
+	}
+	
+	//获取表单中上传的文件
+	var excelFile = request.getFile("excelfile");
+	if(excelFile == null) {
+		response.attr("msg", "请选择Excel文件");
+		return "NHLStandardExport.ftl";
+	}
+	
+	//获取上一个版本的数据期和版本信息，注意有可能为空，如果这个数据期比上一个版本的数据期还长，那么提示错误TODO
+	var version = 0;
+	var lastBbq = '111111';
+	var lastBbqAndVersion = _getLastBbqAndVersion();
+	if (lastBbqAndVersion && lastBbqAndVersion[0] != null && lastBbqAndVersion[0][0]!=null){
+		lastBbq = lastBbqAndVersion[0][0];
+		version = lastBbqAndVersion[0][1];
+	}
+	
+	if (lastBbq > bbq){
+		response.attr("msg", "数据期：" + bbq + "的数据已经导入过了，上一个版本的数据期为从\""+lastBbq+"\"开始的，导入的新基准值的数据期不能早于该日期");
+		return "NHLStandardExport.ftl";
+	}
+	
+	_importClass(); //引入POI文件
+	
+	var fileName = excelFile.fileName; //上传的文件名
+	var data;
+	try{
+		data = _getExcelData(excelFile.file); //读取Excel数据到二维数组（普通格式）
+	}catch(e){
+		response.attr("msg", "文件读取失败，请确保文件内容和格式符合要求，并已填入数据，在读取excel内容为数组的时候出现了异常。<br>"+e);
+		return "NHLStandardExport.ftl";
+	}
+	
+	if(data == null || data.length == 0) {
+		response.attr("msg", "Excel数据为空");
+		return "NHLStandardExport.ftl";
+	}
+	
+	data.push(bbq);
+	data.push("299912"); //每次新加的一个版本都是数据期止为无限的
+	var newVersion = version + 1;
+	data.push(newVersion);
+	data.push(tostr(now(), "yyyy-MM-dd hh:mm:ss"));
+	data.push(sz.security.getCurrentUser().id);
+	data.push("是");
+	
+	var ds = sz.db.getDataSource('CBNY');
+	try{
+		//数据写入
+		var insertSql = "INSERT FACT_NHPJJZ(HDLJZ,ZJZNHJZ,XZZDNHJZ,NHLYLJZ,GCDWNHJZ,TZDWNHJZ," +
+				"ZLDWNHJZ,CWMTDWJZ,KYJDWJZ,QGJDWJZ,HJDWJZ,LMDDWJZ,BBQQ,BBQZ,VERSION,DRSJ,USER_,ISAUDIT) " +
+				"VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+		ds.update(insertSql, data);	
+		
+		if (version >= 1){
+			var updatesql = "update FACT_NHPJJZ set BBQZ=? where version='" + version + "'";
+			ds.update(updatesql,od(bbq,"m-1"));
+		}
+	}catch(e){
+		response.attr("msg", "数据库写入的时候发生了异常，从excel中读取到的数组为："+data.join(";") + "<br>异常信息参考：" + e);
+		return "NHLStandardExport.ftl";
+	}
+	
+	response.attr("bbqq",bbq );
+    response.attr("msg", "保存成功");
+	return "NHLStandardExport.ftl";
+}
+
+/**
+ * 检查文件中的数据日期的与所选导入数据日期是否一致，不一致则返回false
+ */
+function _checkBbqInFile(file) {
+	var fis;
+	try{
+		var javaFile = new java.io.File(file.path);
+		fis = new FileInputStream(javaFile);
+		var fs = new POIFSFileSystem(fis);
+		var wb = new HSSFWorkbook(fs);
+		var sheet = wb.getSheetAt(0);
+		var row = sheet.getRow(1);
+		if(row == null) return false;
+		var bbqInFile = _readStrCell(row.getCell(1));
+		bbqInFile = bbqInFile.replace(/\-/g, "").replace("年","").replace("月","");
+		if (bbqInFile.length == 5){
+			bbqInFile = bbqInFile.substring(0,4) + "0" + bbqInFile.substring(4); 
+		}
+		return round(bbqInFile);
+	} finally {
+		if(fis)
+			fis.close();
+	}
+}
+
+/**
+ * 读取Excel数据到一维数组
+ * 文件数据字段为：企业名称，造船业务的耗电总量，造船业务工业总产值，年度加工车间钢材的总吨数，
+ * 年度造船完工量修正总吨，年度有效涂装面积，统计期内参与组立的部件结构吨数，统计期内船坞码头有效工时，统计期内切割钢材长度，
+ * 电焊设备功率因数，统计期内焊芯（焊丝）实际融化质量，统计期内龙门吊起重物件吨位，数据期
+ * 在导入的时候要注意字段的顺序，不能出现错位
+ */
+function _getExcelData(file) {
+	var fis;
+	try{
+		var javaFile = new java.io.File(file.path);
+		fis = new FileInputStream(javaFile);
+		var fs = new POIFSFileSystem(fis);
+		var wb = new HSSFWorkbook(fs);
+		
+		var data = [];
+		var sheet = wb.getSheetAt(0);
+		
+		//总行数
+		var rowNum = sheet.getLastRowNum();
+		
+		//正文内容从第3行开始，之前的行为表头
+		for (var i = 2; i < rowNum; i++) {
+			var row = sheet.getRow(i);
+			//要确保字段的顺序一致
+			var targetValue = _readNumCell(row.getCell(1));
+			data.push(targetValue); 
+		}
+	} finally {
+		if(fis)
+			fis.close();
+	}
+
+	return data;
+}
+
+
+/**
+ * 为读取Excel所需的POI Java对象设置别名，方便使用
+ */
+function _importClass() {
+	FileInputStream = java.io.FileInputStream;
+	InputStream = java.io.InputStream;
+	SimpleDateFormat = java.text.SimpleDateFormat;
+	
+	HSSFCell = org.apache.poi.hssf.usermodel.HSSFCell;
+	HSSFDateUtil = org.apache.poi.hssf.usermodel.HSSFDateUtil;
+	HSSFRow = org.apache.poi.hssf.usermodel.HSSFRow;
+	HSSFSheet = org.apache.poi.hssf.usermodel.HSSFSheet;
+	HSSFWorkbook = org.apache.poi.hssf.usermodel.HSSFWorkbook;
+	POIFSFileSystem = org.apache.poi.poifs.filesystem.POIFSFileSystem;
+	NumberUtils = com.succez.commons.util.NumberUtils;
+}
+
+/**
+* 清除字符串前后空格
+*/
+function _trim(str) {
+	if(!str || str == null || str == "") {
+		return "";
+	}
+	
+	whitespace = ' \n\r\t\f\x0b\xa0\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u200b\u2028\u2029\u3000'; 
+  for (var i = 0,len = str.length; i < len; i++) { 
+    if (whitespace.indexOf(str.charAt(i)) === -1) { 
+      str = str.substring(i); 
+      break; 
+    } 
+  } 
+  for (i = str.length - 1; i >= 0; i--) { 
+    if (whitespace.indexOf(str.charAt(i)) === -1) { 
+      str = str.substring(0, i + 1); 
+      break; 
+    } 
+  } 
+  return whitespace.indexOf(str.charAt(0)) === -1 ? str : ''; 
+}
+
+function _readStrCell(cell) {
+	if(cell == null || "" == _trim(cell.toString())) {
+		return "";
+	} else {
+		return _trim(cell.toString());
+	}
+}
+
+function _readNumCell(cell) {
+	if(cell == null || "" == _trim(cell.toString())) {
+		return "0";
+	} else {
+		return _trim(cell.toString());
+	}
+}
+
+/**
+ * 检查指定报表周期类型下的是否已存在指定数据期的数据
+ * 没有该数据期的数据则检查通过，返回true，否则返回false
+ */
+function _checkBBQ(bbq) {
+	var ds = sz.db.getDataSource('CBNY');
+	var result = ds.select("SELECT * FROM FACT_NHJCSL WHERE BBQ=?", bbq);
+	return result;
+}
+
+/**
+ * 获取DS_NHPJJZ能耗量基准表中的数据期和版本信息，以便用来做一些判断
+ */
+function _getLastBbqAndVersion(){
+	var ds = sz.db.getDataSource('CBNY');
+	var result = ds.select("select bbqq, version from FACT_NHPJJZ where version = (select max(version) from FACT_NHPJJZ)");
+	return result;
+}

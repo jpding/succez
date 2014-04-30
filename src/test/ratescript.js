@@ -1,13 +1,27 @@
 function main(args){
   var result = getRates();
+  
+  var ds = sz.db.getDefaultDataSource();
+  var update = ds.createTableUpdater("RATE", "");
   for(var i=0; i<result.length; i++){
   	var obj = result[i];
   	println(obj);
+  	importDataByDay(update, obj);
   }
+  update.commit();
 }
 
-function importDataByDay(){
-	
+function importDataByDay(update, obj){
+	for(var key in obj){
+		if(key == '日期'){
+			continue;
+		}
+		
+		var conObj = {};
+		conObj['H_DATE'] = obj['日期'];
+		conObj['CURR'] = key;
+		update.set("RATE", obj[key], conObj);
+	}
 }
 
 function getRates(){
@@ -34,7 +48,6 @@ function getRates(){
 				var temp = tdNodes.elementAt(j);
 				var vv = org.apache.commons.lang.StringUtils.remove(org.apache.commons.lang.StringUtils.trim(temp.getFirstChild().getText()), "&nbsp;");
 				if(j == 0){
-					//vv = org.apache.commons.lang.StringUtils.replaceChars(vv, "-","");
 					vv = tostr(vv,'yyyymmdd');
 				}
 				map[tempCOL[j]]=vv;
